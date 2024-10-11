@@ -71,13 +71,16 @@ RUN apt-get update || true  && \
     && echo "alias pip=pip3" >> ~/.bashrc \
     && rm -rf /var/lib/apt/lists/* 
 
+
+
 # Add ROS 2 GPG key and sources list
 RUN curl -s https://raw.githubusercontent.com/ros/rosdistro/master/ros.asc | apt-key add - && \
     sh -c 'echo "deb http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" > /etc/apt/sources.list.d/ros2-latest.list'
 
 # Install ROS 2 Humble
 RUN apt-get update && apt-get install -y \
-    ros-humble-desktop
+    ros-humble-desktop \
+    python3-colcon-common-extensions
 
 # Source ROS 2 environment and setup entrypoint
 RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc
@@ -96,7 +99,7 @@ RUN python3 -m pip install --upgrade pip && \
     "ipywidgets==7.6.5"
 
 # Install metavision SDK and Python dependencies
-COPY metavision.list /etc/apt/sources.list.d/metavision.list
+COPY docker/metavision.list /etc/apt/sources.list.d/metavision.list
 RUN apt-get update && apt-get install -y \
     metavision-sdk \
     metavision-sdk-python3.9
