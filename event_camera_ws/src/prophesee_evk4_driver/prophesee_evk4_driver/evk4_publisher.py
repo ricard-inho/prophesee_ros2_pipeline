@@ -94,8 +94,9 @@ class Evk4Publisher(Node):
             self.get_logger().warn(str(e))
             return False
         
-    def __del__(self):
+    def destroy_node(self):
         self.i_eventsstream.stop()
+        super().destroy_node()
 
 
 def main(args=None):

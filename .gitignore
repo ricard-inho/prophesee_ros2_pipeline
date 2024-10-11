@@ -3,3 +3,5 @@
 event_camera_ws/build/*
 event_camera_ws/install/*
 event_camera_ws/log/*
+
+*.h5
