@@ -5,3 +5,7 @@ event_camera_ws/install/*
 event_camera_ws/log/*
 
 *.h5
+*.raw
+*.dat
+*.hdf5
+*.tmp_index

@@ -12,5 +12,5 @@ docker run -it --gpus all --rm --privileged \
     -v /dev/bus/usb:/deb/bus/usb \
     -e TZ=Europe/Luxembourg \
     -v $(pwd):/workspace \
-    -w /workspace \
+    -w /workspace/event_camera_ws \
     $IMAGE_NAME

@@ -96,7 +96,9 @@ RUN python3 -m pip install --upgrade pip && \
     pandas \
     scipy \
     matplotlib \
-    "ipywidgets==7.6.5"
+    "ipywidgets==7.6.5" \
+    numba \
+    tqdm
 
 # Install metavision SDK and Python dependencies
 COPY docker/metavision.list /etc/apt/sources.list.d/metavision.list

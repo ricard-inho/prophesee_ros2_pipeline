@@ -26,12 +26,8 @@ class Evk4Subscriber(Node):
 
     def listener_callback(self, msg):
         # Process the received EventArray message
-        
-
-        current_time = time.time()
-        current_second = int(current_time)
-        
-        self.get_logger().info(f"Received message with {len(msg.events)} events. Timestamps ({msg.events[0].ts.nanosec},{msg.events[-1].ts.nanosec}")
+        for event in msg.events:
+            self.get_logger().info(f"Event: x={event.x}, y={event.y}, polarity={event.polarity}, timestamp={event.ts.sec}.{event.ts.nanosec}")
 
     def destroy_node(self):
         # Close the current HDF5 file before shutting down if it exists
