@@ -3,7 +3,9 @@ from rclpy.node import Node # type: ignore
 from builtin_interfaces.msg import Time # type: ignore
 from evk4_msg.msg import EventArray, Event
 
-
+from metavision_core.event_io.raw_reader import initiate_device
+from metavision_core.event_io import EventsIterator
+import time
 from metavision_hal import DeviceDiscovery
 
 class Evk4Publisher(Node):
@@ -19,8 +21,8 @@ class Evk4Publisher(Node):
 
         self.publisher_cd_events = self.create_publisher(EventArray, 'topic_cd_event_buffer', 500)
 
-        while not self.open_camera():
-            self.get_logger().info("Trying to open camera...")
+        while not self.open_device():
+            self.get_logger().info("Trying to open device...")
             self.get_clock().sleep_for(rclpy.duration.Duration(seconds=1))
 
 
@@ -29,25 +31,21 @@ class Evk4Publisher(Node):
 
 
     def process_events(self):
+        # Events iterator on Device
+        mv_iterator = EventsIterator.from_device(device=self.device)
+        self.device_height, self.device_width = mv_iterator.get_size()  # Camera Geometry
         while rclpy.ok():
             try:
-                ret = self.i_eventsstream.poll_buffer()
-                if ret < 0:
-                    break
-                elif ret > 0:
-                    raw_data = self.i_eventsstream.get_latest_raw_data()
-                    if raw_data is not None:
-                        self.i_eventsstreamdecoder.decode(raw_data)
+                 # Process events
+                for evs in mv_iterator:
+                    self.publish_cd_event_buffer(evs)
+                    self.get_logger().info(f"New buffer of size {evs.size} with timestamp range: "
+                                   f"({evs[0]['t']},{evs[-1]['t']})")
+
             except KeyboardInterrupt:
+                self.device.get_i_events_stream().stop_log_raw_data()
                 break
         
-        self.i_eventsstream.stop()
-
-    def print_cd_events(self, event_buffer):
-        if event_buffer.size > 0:
-            self.get_logger().info(f"New buffer of size {event_buffer.size} with timestamp range: "
-                                   f"({event_buffer[0]['t']},{event_buffer[-1]['t']})")
-            self.publish_cd_event_buffer(event_buffer)
 
     def publish_cd_event_buffer(self, event_buffer):
         """Publish the CD events to the ROS topic."""
@@ -56,8 +54,8 @@ class Evk4Publisher(Node):
 
         msg.header.stamp = Time(sec=int(event_buffer[0]['t'] * 1e-6), 
                                 nanosec=int(event_buffer[0]['t'] % 1e6) * 1000)
-        msg.height = 0#TODO
-        msg.width = 0#TODO
+        msg.height = self.device_height
+        msg.width = self.device_width
         
 
         for event in event_buffer:
@@ -74,20 +72,21 @@ class Evk4Publisher(Node):
 
 
 
-    def open_camera(self) -> bool:
+    def open_device(self) -> bool:
         try:
             if self.raw_file_to_read:
-                self.camera = DeviceDiscovery.open(self.raw_file_to_read)
+                self.device = DeviceDiscovery.open(self.raw_file_to_read)
                 self.get_logger().info(f"[CONF] Reading from raw file: {self.event_file_path}")
             else:
-                self.camera = DeviceDiscovery.open("")
-                self.get_logger().info("[CONF] Using live camera stream.")
-            
-            self.i_cddecoder = self.camera.get_i_event_cd_decoder()
-            self.i_cddecoder.add_event_buffer_callback(self.print_cd_events)
-            self.i_eventsstreamdecoder = self.camera.get_i_events_stream_decoder()
-            self.i_eventsstream = self.camera.get_i_events_stream()
-            self.i_eventsstream.start()
+                # HAL Device on live camera
+                self.device = initiate_device("")
+                self.get_logger().info("[CONF] Using live device stream.")
+
+                # Start the recording
+                if self.device.get_i_events_stream():
+                    log_path = "/workspace/events/recording_" + time.strftime("%y%m%d_%H%M%S", time.localtime()) + ".raw"
+                    
+                self.device.get_i_events_stream().log_raw_data(log_path)
 
             return True
         except Exception as e:
@@ -95,7 +94,7 @@ class Evk4Publisher(Node):
             return False
         
     def destroy_node(self):
-        self.i_eventsstream.stop()
+        self.device.get_i_events_stream().stop_log_raw_data()
         super().destroy_node()
 
 
