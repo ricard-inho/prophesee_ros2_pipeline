@@ -5,6 +5,8 @@ from evk4_msg.msg import EventArray  # Make sure to import your custom message t
 import h5py
 import numpy as np
 import time 
+from metavision_sdk_core import PeriodicFrameGenerationAlgorithm, ColorPalette
+from metavision_sdk_ui import EventLoop, BaseWindow, MTWindow, UIAction, UIKeyEvent
 
 
 class Evk4Subscriber(Node):
@@ -25,9 +27,8 @@ class Evk4Subscriber(Node):
         self.start_time = None 
 
     def listener_callback(self, msg):
-        # Process the received EventArray message
-        for event in msg.events:
-            self.get_logger().info(f"Event: x={event.x}, y={event.y}, polarity={event.polarity}, timestamp={event.ts.sec}.{event.ts.nanosec}")
+        self.get_logger().info(f"New buffer of size {len(msg.x)} with timestamp range: " 
+                               f"({msg.ts[0]},{msg.ts[-1]})")
 
     def destroy_node(self):
         # Close the current HDF5 file before shutting down if it exists
