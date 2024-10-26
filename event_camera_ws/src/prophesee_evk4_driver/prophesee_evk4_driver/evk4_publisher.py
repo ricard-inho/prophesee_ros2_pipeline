@@ -90,7 +90,7 @@ class Evk4Publisher(Node):
             self.get_logger().debug(f"New buffer of size {event_buffer.size} with timestamp range: "
                                     f"({event_buffer[0]['t']},{event_buffer[-1]['t']}) - Queue size {self.event_queue.qsize()}")
             end_time = time.time()
-            print(f"Execution time publish_cd_event_buffer: {end_time - start_time:.4f} seconds")
+            print(f"Execution time publish_cd_event_buffer: {end_time - start_time:.4f} seconds - Queue size {self.event_queue.qsize()}")
 
 
 
@@ -108,7 +108,7 @@ class Evk4Publisher(Node):
                 if self.device.get_i_events_stream():
                     log_path = "/workspace/events/recording_" + time.strftime("%y%m%d_%H%M%S", time.localtime()) + ".raw"
                     
-                # self.device.get_i_events_stream().log_raw_data(log_path)
+                self.device.get_i_events_stream().log_raw_data(log_path)
 
             return True
         except Exception as e:
