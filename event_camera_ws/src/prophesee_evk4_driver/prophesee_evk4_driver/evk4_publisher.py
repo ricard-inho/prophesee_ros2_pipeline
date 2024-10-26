@@ -24,7 +24,8 @@ class Evk4Publisher(Node):
 
         self.publisher_cd_events = self.create_publisher(EventArray, 'topic_cd_event_buffer', 500)
 
-        self.event_queue = Queue()
+        self.event_queue = Queue(maxsize=10000)
+        self.stop_event = threading.Event()
 
         while not self.open_device():
             self.get_logger().info("Trying to open device...")
@@ -39,13 +40,14 @@ class Evk4Publisher(Node):
         self.processing_thread.start()
 
 
-        # self.process_events()
-
-
     def publisher_loop(self):
-        while rclpy.ok():
-            evs = self.event_queue.get()
-            self.publish_cd_event_buffer(evs)
+        while rclpy.ok() and not self.stop_event.is_set():
+            try:
+                evs = self.event_queue.get(timeout=1)
+                self.publish_cd_event_buffer(evs)
+            except Queue.Empty:
+                continue
+        
 
     def process_events(self):
         # Events iterator on Device
@@ -53,69 +55,42 @@ class Evk4Publisher(Node):
         self.device_height, self.device_width = mv_iterator.get_size()  # Camera Geometry
         try:
             for evs in mv_iterator:
-                self.event_queue.put(evs)
-                # self.publish_cd_event_buffer(evs)
-                # self.get_logger().info(f"New buffer of size {evs.size} with timestamp range: "
-                #                    f"({evs[0]['t']},{evs[-1]['t']})")
+                if self.stop_event.is_set():
+                    break
+                self.event_queue.put(evs)  
+
         except KeyboardInterrupt:
             self.device.get_i_events_stream().stop_log_raw_data()
             
-        # while rclpy.ok():
-        #     try:
-        #          # Process events
-        #         for evs in mv_iterator:
-        #             self.publish_cd_event_buffer(evs)
-        #             self.get_logger().info(f"New buffer of size {evs.size} with timestamp range: "
-        #                            f"({evs[0]['t']},{evs[-1]['t']})")
-
-        #     except KeyboardInterrupt:
-        #         self.device.get_i_events_stream().stop_log_raw_data()
-        #         break
         
 
     def publish_cd_event_buffer(self, event_buffer):
-
-        msg = EventArray()
-        msg.header.stamp = self.get_clock().now().to_msg()
-        msg.height = self.device_height
-        msg.width = self.device_width
-
-        # Convert and assign arrays directly
-        msg.x = event_buffer['x'].astype(np.int16).tolist()
-        msg.y = event_buffer['y'].astype(np.int16).tolist()
-        msg.polarity = event_buffer['p'].astype(bool).tolist()
-        # msg.ts = event_buffer['t'].astype(np.int64).tolist()
-        secs = (event_buffer['t'] * 1e-6).astype(np.int32)
-        nsecs = ((event_buffer['t'] % 1e6) * 1000).astype(np.int32)
-        msg.ts = [Time(sec=int(s), nanosec=int(ns)) for s, ns in zip(secs, nsecs)]
-        # msg.ts.nanosec = int((t['t']* 1e3) % 1e9 for t in event_buffer['t'])
-
-        self.publisher_cd_events.publish(msg)
-
-        self.get_logger().info(f"New buffer of size {event_buffer.size} with timestamp range: "
-                                   f"({event_buffer[0]['t']},{event_buffer[-1]['t']})")
-
-        # """Publish the CD events to the ROS topic."""
         
-        # msg = EventArray()
+        if event_buffer.size > 0:
+            start_time = time.time()
 
-        # msg.header.stamp = Time(sec=int(event_buffer[0]['t'] * 1e-6), 
-        #                         nanosec=int(event_buffer[0]['t'] % 1e6) * 1000)
-        # msg.height = self.device_height
-        # msg.width = self.device_width
-        
+            msg = EventArray()
+            msg.header.stamp = self.get_clock().now().to_msg()
+            msg.height = self.device_height
+            msg.width = self.device_width
 
-        # for event in event_buffer:
-        #     ros_event = Event()
-        #     ros_event.x = int(event['x'])  
-        #     ros_event.y = int(event['y']) 
-        #     ros_event.polarity = bool(event['p'])
-        #     ros_event.ts = Time()
-        #     ros_event.ts.nanosec = int((event['t']* 1e3) % 1e9) #nanoseconds
-        #     msg.events.append(ros_event)
+            # Convert and assign arrays directly
+            msg.x = event_buffer['x'].astype(np.int16).tolist()
+            msg.y = event_buffer['y'].astype(np.int16).tolist()
+            msg.polarity = event_buffer['p'].astype(bool).tolist()
+            # msg.ts = event_buffer['t'].astype(np.int64).tolist()
+            secs = (event_buffer['t'] * 1e-6).astype(np.int32)
+            nsecs = ((event_buffer['t'] % 1e6) * 1000).astype(np.int32)
+            msg.ts = [Time(sec=int(s), nanosec=int(ns)) for s, ns in zip(secs, nsecs)]
+            # msg.ts.nanosec = int((t['t']* 1e3) % 1e9 for t in event_buffer['t'])
 
-        # self.publisher_cd_events.publish(msg)
-        # self.get_logger().info(f'Publishing: ({msg})')
+            self.publisher_cd_events.publish(msg)
+
+            
+            self.get_logger().debug(f"New buffer of size {event_buffer.size} with timestamp range: "
+                                    f"({event_buffer[0]['t']},{event_buffer[-1]['t']}) - Queue size {self.event_queue.qsize()}")
+            end_time = time.time()
+            print(f"Execution time publish_cd_event_buffer: {end_time - start_time:.4f} seconds")
 
 
 
@@ -133,7 +108,7 @@ class Evk4Publisher(Node):
                 if self.device.get_i_events_stream():
                     log_path = "/workspace/events/recording_" + time.strftime("%y%m%d_%H%M%S", time.localtime()) + ".raw"
                     
-                self.device.get_i_events_stream().log_raw_data(log_path)
+                # self.device.get_i_events_stream().log_raw_data(log_path)
 
             return True
         except Exception as e:
@@ -150,13 +125,16 @@ def main(args=None):
 
     evk4_publisher = Evk4Publisher()
 
-    rclpy.spin(evk4_publisher)
-
-    # Destroy the node explicitly
-    # (optional - otherwise it will be done automatically
-    # when the garbage collector destroys the node object)
-    evk4_publisher.destroy_node()
-    rclpy.shutdown()
+    try:
+        rclpy.spin(evk4_publisher)
+    except KeyboardInterrupt:
+        evk4_publisher.get_logger().info("KeyboardInterrupt received, shutting down...")
+        evk4_publisher.stop_event.set()  # Signal threads to stop
+        evk4_publisher.publisher_thread.join()
+        evk4_publisher.processing_thread.join()
+    finally:
+        evk4_publisher.destroy_node()
+        rclpy.shutdown()
 
 if __name__ == "__main__":
     main()
