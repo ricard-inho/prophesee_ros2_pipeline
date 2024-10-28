@@ -9,18 +9,25 @@ import time
 import numpy as np
 import threading
 from queue import Queue
-from metavision_hal import DeviceDiscovery
+import hydra
+from hydra.core.config_store import ConfigStore
+from dataclasses import dataclass, field
+import os
+
+
+@dataclass
+class Config:
+    log_path: str = "/workspace/events"
+
+cs = ConfigStore.instance()
+cs.store(name="config", node=Config)
 
 class Evk4Publisher(Node):
 
-    def __init__(self):
+    def __init__(self, cfg: Config):
         super().__init__('evk4_publisher')
 
-        self.declare_parameter("bias_file", "")
-        self.declare_parameter("raw_file_to_read", "")
-
-        self.biases_file = self.get_parameter("bias_file").get_parameter_value().string_value
-        self.raw_file_to_read = self.get_parameter("raw_file_to_read").get_parameter_value().string_value
+        self.cfg = cfg
 
         self.publisher_cd_events = self.create_publisher(EventArray, 'topic_cd_event_buffer', 500)
 
@@ -96,17 +103,14 @@ class Evk4Publisher(Node):
 
     def open_device(self) -> bool:
         try:
-            if self.raw_file_to_read:
-                self.device = DeviceDiscovery.open(self.raw_file_to_read)
-                self.get_logger().info(f"[CONF] Reading from raw file: {self.event_file_path}")
-            else:
-                # HAL Device on live camera
-                self.device = initiate_device("")
-                self.get_logger().info("[CONF] Using live device stream.")
+            # HAL Device on live camera
+            self.device = initiate_device("")
+            self.get_logger().info("[CONF] Using live device stream.")
 
-                # Start the recording
-                if self.device.get_i_events_stream():
-                    log_path = "/workspace/events/recording_" + time.strftime("%y%m%d_%H%M%S", time.localtime()) + ".raw"
+            # Start the recording
+            if self.device.get_i_events_stream():
+                # log_path = "/workspace/events/recording_" + time.strftime("%y%m%d_%H%M%S", time.localtime()) + ".raw"
+                log_path = f"{self.cfg.log_path}/recording_" + time.strftime("%y%m%d_%H%M%S", time.localtime()) + ".raw"
                     
                 self.device.get_i_events_stream().log_raw_data(log_path)
 
@@ -119,11 +123,11 @@ class Evk4Publisher(Node):
         self.device.get_i_events_stream().stop_log_raw_data()
         super().destroy_node()
 
+@hydra.main(config_path="/workspace/config", config_name="evk4_cfg", version_base="1.2")
+def main(cfg: Config):
+    rclpy.init()
 
-def main(args=None):
-    rclpy.init(args=args)
-
-    evk4_publisher = Evk4Publisher()
+    evk4_publisher = Evk4Publisher(cfg)
 
     try:
         rclpy.spin(evk4_publisher)

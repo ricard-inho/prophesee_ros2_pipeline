@@ -98,7 +98,8 @@ RUN python3 -m pip install --upgrade pip && \
     matplotlib \
     "ipywidgets==7.6.5" \
     numba \
-    tqdm
+    tqdm \
+    hydra-core
 
 # Install metavision SDK and Python dependencies
 COPY docker/metavision.list /etc/apt/sources.list.d/metavision.list
