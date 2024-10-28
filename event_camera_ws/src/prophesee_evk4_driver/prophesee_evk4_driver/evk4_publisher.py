@@ -43,7 +43,7 @@ class Evk4Publisher(Node):
     def publisher_loop(self):
         while rclpy.ok() and not self.stop_event.is_set():
             try:
-                evs = self.event_queue.get(timeout=1)
+                evs = self.event_queue.get()
                 self.publish_cd_event_buffer(evs)
             except Queue.Empty:
                 continue
