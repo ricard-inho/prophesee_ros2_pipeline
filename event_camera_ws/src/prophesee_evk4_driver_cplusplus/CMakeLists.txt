@@ -10,11 +10,15 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
+find_package(MetavisionSDK COMPONENTS core stream ui REQUIRED)
+
 add_executable(evk4_publisher src/evk4_publisher.cpp)
 ament_target_dependencies(evk4_publisher rclcpp std_msgs)
 
 add_executable(evk4_subscriber src/evk4_subscriber.cpp)
 ament_target_dependencies(evk4_subscriber rclcpp std_msgs)
+
+target_link_libraries(evk4_publisher MetavisionSDK::core MetavisionSDK::stream MetavisionSDK::ui)
 
 install(TARGETS
 evk4_publisher

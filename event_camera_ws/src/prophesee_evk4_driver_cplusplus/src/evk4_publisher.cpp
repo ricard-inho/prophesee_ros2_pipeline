@@ -32,6 +32,16 @@ class MinimalPublisher : public rclcpp::Node
     size_t count_;
 };
 
+class Phrophesee_evk4_driver : public rclcpp::Node
+{
+    public:
+        Phrophesee_evk4_driver()
+};
+
+Phrophesee_evk4_driver::Phrophesee_evk4_driver() : Node("prophesee_ros_publisher") {
+    
+}
+
 int main(int argc, char * argv[])
 {
   rclcpp::init(argc, argv);
